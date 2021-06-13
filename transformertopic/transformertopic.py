@@ -11,7 +11,7 @@ import seaborn as sns
 from wordcloud import WordCloud
 from transformertopic.dimensionReducers import UmapEmbeddings
 from transformertopic.clusterRepresentators import TextRank
-from transformertopic.utils import scrambleDateColumn
+from transformertopic.utils import scrambleDateColumn, generateTextId
 from spacy.lang.en import English
 Sentencizer = English()
 Sentencizer.add_pipe("sentencizer")
@@ -22,7 +22,7 @@ class TransformerTopic():
     Class representing a BertTopic model.
     """
 
-    def __init__(self, dimensionReducer=None, clusterRepresentator=None, hdbscanMinClusterSize=100):
+    def __init__(self, dimensionReducer=None, clusterRepresentator=None, hdbscanMinClusterSize=100, stEmbeddings=None):
         """
         hdbscanMinClustersize: hdbscan parameter. Corresponds to minimum size of topic. Higher => fewer topics.
         """
@@ -33,7 +33,9 @@ class TransformerTopic():
             clusterRepresentator = TextRank()
         self.clusterRepresentator = clusterRepresentator
         # MODEL PARAMETERS:
-        self.stEmbeddingsModel = 'distilbert-base-nli-mean-tokens'
+        if stEmbeddings is None:
+            stEmbeddings = "paraphrase-MiniLM-L6-v2"
+        self.stEmbeddingsModel = stEmbeddings
         self.hdbscanMinClusterSize = hdbscanMinClusterSize
         self.hdbscanMetric = 'euclidean'
         self.hdbscanClusterSelectionMethod = 'eom'
@@ -47,12 +49,13 @@ class TransformerTopic():
         self.df = None
 
         # GENERATED DATA
+        # self.topicIds = None
         self.twoDEmbeddings = None
         self.nBatches = 0
         self.nTopics = -1
         self.runFullCompleted = False
-        self.documentIdsToTopics = None  # TODO: can remove? use fulldf instead
-        self.topicsToDocumentIds = None  # TODO: can remove? use fulldf instead
+        # self.documentIdsToTopics = None  # TODO: can remove? use fulldf instead
+        # self.topicsToDocumentIds = None  # TODO: can remove? use fulldf instead
         self.clusterRepresentations = None
         self.topicSizes = None
 
@@ -69,7 +72,14 @@ class TransformerTopic():
         self.__dict__.update(tmpdict)
         logger.debug(f"Loaded class from {filepath}")
 
-    def train(self, documentsDataFrame, idColumn, dateColumn, textColumn):
+    def train(
+            self,
+            documentsDataFrame,
+            dateColumn,
+            textColumn,
+            idColumn=None,
+            copyOtherColumns=False
+            ):
         """
         Runs the full clustering procedure - slow.
 
@@ -80,13 +90,19 @@ class TransformerTopic():
         """
         logger.debug("runFull: start")
         self.nOriginalDocuments = len(documentsDataFrame)
+        self.df = documentsDataFrame.copy()
         self.df = pd.DataFrame(self._getSplitSentencesData(
-            documentsDataFrame, idColumn, dateColumn, textColumn))
+            dataFrame=self.df,
+            dateColumn=dateColumn,
+            textColumn=textColumn,
+            idColumn=idColumn,
+            copyOtherColumns=copyOtherColumns
+        ))
         self.df["date"] = pd.to_datetime(self.df["date"])
         self.df['batch'] = 1
         self.nBatches = 1
         texts = list(self.df["text"])
-        textIds = list(self.df["id"])
+        # textIds = list(self.df["id"])
         logger.debug(
             f"computing SentenceTransformer embeddings for {self.stEmbeddingsModel}")
         self.stModel = SentenceTransformer(self.stEmbeddingsModel)
@@ -105,40 +121,52 @@ class TransformerTopic():
                                          prediction_data=True)
         self.clusters = {}
         self.clusters[1] = self.clusterer.fit(self.reducedEmbeddings[1])
-        self.documentIdsToTopics = {}
-        self.topicsToDocumentIds = {k: set() for k in self.clusters[1].labels_}
+        # self.documentIdsToTopics = {}
+        # self.topicsToDocumentIds = {k: set() for k in self.clusters[1].labels_}
         for doubleIdx, label in np.ndenumerate(self.clusters[1].labels_):
             idx = doubleIdx[0]
-            tId = textIds[idx]
-            self.documentIdsToTopics[tId] = label
-            self.topicsToDocumentIds[label].add(tId)
-            self.df.loc[self.df["id"] == tId, "topic"] = int(label)
+            # tId = textIds[idx]
+            # self.documentIdsToTopics[tId] = label
+            # self.topicsToDocumentIds[label].add(tId)
+            self.df.at[idx, "topic"] = int(label)
         self.nTopics = self.clusters[1].labels_.max() + 1
         self.runFullCompleted = True
         logger.debug("runFull: completed")
 
-    def _getSplitSentencesData(self, dataFrame, idColumn, dateColumn, textColumn):
+    def _getSplitSentencesData(self,
+                               dataFrame,
+                               dateColumn,
+                               textColumn,
+                               idColumn=None,
+                               copyOtherColumns=False):
         data = []
         for index, row in dataFrame.iterrows():
-            id = row[idColumn]
             date = row[dateColumn]
             fulltext = row[textColumn]
+            if idColumn is None:
+                id = generateTextId(fulltext)
+            else:
+                id = row[idColumn]
             if type(fulltext) == type(1.0):
                 continue
             sents = Sentencizer(fulltext).sents
             for sent in sents:
-                data.append({
+                newRow = {
                     "id": id,
                     "date": date,
                     "text": str(sent)
-                })
+                }
+                if copyOtherColumns:
+                    for column in set(dataFrame.columns).difference({"id", "date", "text"}):
+                        newRow[column] = row[column]
+                data.append(newRow)
         return data
 
     def getTopicsForDoc(self, documentId):
         subdf = self.df.loc[self.df["id"] == documentId]
         return list(subdf["topic"])
 
-    def infer(self, newDocumentsDataFrame, idColumn, dateColumn, textColumn):
+    def infer(self, newDocumentsDataFrame, dateColumn, textColumn, idColumn=None):
         """
         Runs HDBSCAN approximate inference on new texts.
 
@@ -148,7 +176,11 @@ class TransformerTopic():
             raise Exception("No model computed")
 
         tmpDf = pd.DataFrame(self._getSplitSentencesData(
-            newDocumentsDataFrame, idColumn, dateColumn, textColumn))
+            dataFrame=newDocumentsDataFrame,
+            dateColumn=dateColumn,
+            textColumn=textColumn,
+            idColumn=idColumn
+        ))
         indexesAlreadyPresent = set(
             self.df["id"]).intersection(set(tmpDf["id"]))
         tmpDf = tmpDf[~tmpDf["id"].isin(indexesAlreadyPresent)]
@@ -221,24 +253,24 @@ class TransformerTopic():
         self.clusterRepresentations = {k: {} for k in range(-1, self.nTopics)}
         firstbatchdf = self.df[self.df['batch'] == 1]
         for cluster_idx in range(-1, self.nTopics):
-            def filterByClusterIdx(row):
-                if self.documentIdsToTopics[row["id"]] == cluster_idx:
-                    return True
-                else:
-                    return False
+            # def filterByClusterIdx(row):
+            #     if self.documentIdsToTopics[row["id"]] == cluster_idx:
+            #         return True
+            #     else:
+            #         return False
 
-            clusterDocumentMask = firstbatchdf.apply(
-                filterByClusterIdx, axis=1)
-            subDataFrame = firstbatchdf[clusterDocumentMask]
+            # clusterDocumentMask = firstbatchdf.apply(
+            #     filterByClusterIdx, axis=1)
+            # subDataFrame = firstbatchdf[clusterDocumentMask]
             # topicToFullDocsJoined.append(
             #     ". ".join(subDataFrame["text"].values))
-            documents = list(subDataFrame["text"])
+            topicDf = firstbatchdf[firstbatchdf['topic'] == cluster_idx]
+            documents = list(topicDf["text"])
             keywords, scores = self.clusterRepresentator.fit_transform(
                 documents, nKeywords)
             assert len(keywords) == len(scores)
             self.clusterRepresentations[cluster_idx] = {
                 keywords[i]: scores[i] for i in range(len(keywords))}
-
 
     def showWordclouds(self, topicsToShow=None, nWordsToShow=15):
         """
@@ -274,7 +306,8 @@ class TransformerTopic():
         for topicIdx in topicsToPrint:
             print(f"\nTopic {topicIdx}")
             representationItems = self.clusterRepresentations[topicIdx].items()
-            wordFrequencies = sorted(representationItems, key=lambda x: x[1], reverse=True)
+            wordFrequencies = sorted(
+                representationItems, key=lambda x: x[1], reverse=True)
             for word, frequency in wordFrequencies[:nWordsToShow]:
                 print("\n%10s:%2.3f" % (word, frequency))
 
