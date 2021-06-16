@@ -1,16 +1,15 @@
-import pacmap
+from sklearn.manifold import TSNE
 from loguru import logger
 
-class PacmapEmbeddings():
+class TsneEmbeddings():
     def __init__(self, n_components=76):
-        # self.model = pacmap.PaCMAP(n_dims=2, n_neighbors=None, MN_ratio=0.5, FP_ratio=2.0) 
         self.n_components = n_components
-        self.model = pacmap.PaCMAP(n_dims = n_components, FP_ratio=4)
-        self.model2d = pacmap.PaCMAP(n_dims = 2)
+        self.model = TSNE(n_components=n_components)
+        self.model2d = TSNE(n_components= 2)
                                 
     def fit_transform(self, vectors):
         logger.debug(
-            f"computing Pacmap embeddings with n_components = {self.n_components}"
+            f"computing Tsne embeddings with n_components = {self.n_components}"
             )
         return self.model.fit_transform(vectors)
 

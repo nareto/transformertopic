@@ -1,18 +1,22 @@
 import datetime as dt
+import pickle
+
 import hdbscan
-from sentence_transformers import SentenceTransformer
-from sklearn.feature_extraction.text import CountVectorizer
 import matplotlib.pyplot as plt
-from loguru import logger
 import numpy as np
 import pandas as pd
-import pickle
 import seaborn as sns
-from wordcloud import WordCloud
-from transformertopic.dimensionReducers import UmapEmbeddings
-from transformertopic.clusterRepresentators import TextRank
-from transformertopic.utils import scrambleDateColumn, generateTextId
+from tqdm import tqdm
+from loguru import logger
+from sentence_transformers import SentenceTransformer
+from sklearn.feature_extraction.text import CountVectorizer
 from spacy.lang.en import English
+from wordcloud import WordCloud
+
+from transformertopic.clusterRepresentators import TextRank
+from transformertopic.dimensionReducers import UmapEmbeddings
+from transformertopic.utils import generateTextId, scrambleDateColumn
+
 Sentencizer = English()
 Sentencizer.add_pipe("sentencizer")
 
@@ -22,16 +26,13 @@ class TransformerTopic():
     Class representing a BertTopic model.
     """
 
-    def __init__(self, dimensionReducer=None, clusterRepresentator=None, hdbscanMinClusterSize=100, stEmbeddings=None):
+    def __init__(self, dimensionReducer=None, hdbscanMinClusterSize=100, stEmbeddings=None):
         """
         hdbscanMinClustersize: hdbscan parameter. Corresponds to minimum size of topic. Higher => fewer topics.
         """
         if dimensionReducer is None:
             dimensionReducer = UmapEmbeddings()
         self.dimensionReducer = dimensionReducer
-        if clusterRepresentator is None:
-            clusterRepresentator = TextRank()
-        self.clusterRepresentator = clusterRepresentator
         # MODEL PARAMETERS:
         if stEmbeddings is None:
             stEmbeddings = "paraphrase-MiniLM-L6-v2"
@@ -47,6 +48,7 @@ class TransformerTopic():
         # self.textColumn = None
         self.nOriginalDocuments = 0
         self.df = None
+        self.clusterRepresentator = None
 
         # GENERATED DATA
         # self.topicIds = None
@@ -79,7 +81,7 @@ class TransformerTopic():
             textColumn,
             idColumn=None,
             copyOtherColumns=False
-            ):
+    ):
         """
         Runs the full clustering procedure - slow.
 
@@ -244,15 +246,15 @@ class TransformerTopic():
 
     def _computeClusterRepresentations(self, nKeywords=25):
         """
-        Computes tfidf representation of clusters.
-
+        Computes representation of clusters for wordclouds.
         """
         if not self.runFullCompleted:
             raise Exception("No model computed")
 
         self.clusterRepresentations = {k: {} for k in range(-1, self.nTopics)}
         firstbatchdf = self.df[self.df['batch'] == 1]
-        for cluster_idx in range(-1, self.nTopics):
+        print(f"Computing {self.nTopics} cluster representations")
+        for cluster_idx in tqdm(range(self.nTopics)):
             # def filterByClusterIdx(row):
             #     if self.documentIdsToTopics[row["id"]] == cluster_idx:
             #         return True
@@ -272,14 +274,17 @@ class TransformerTopic():
             self.clusterRepresentations[cluster_idx] = {
                 keywords[i]: scores[i] for i in range(len(keywords))}
 
-    def showWordclouds(self, topicsToShow=None, nWordsToShow=15):
+    def showWordclouds(self, topicsToShow=None, nWordsToShow=15, clusterRepresentator=None):
         """
         Show wordclouds.
 
         topicsToShow: set with topics indexes to print. If None all topics are chosen.
         nWordsToShow: how many words to show for each topic
         """
-        if self.clusterRepresentations is None:
+        if clusterRepresentator is None and self.clusterRepresentator is None:
+            raise Exception("You need to pass a clusterRepresentator")
+        if self.clusterRepresentator is None or (clusterRepresentator is not None and (type(clusterRepresentator) != type(self.clusterRepresentator))):
+            self.clusterRepresentator = clusterRepresentator
             self._computeClusterRepresentations()
         if topicsToShow is None:
             topicsToShow = set(range(self.nTopics))
