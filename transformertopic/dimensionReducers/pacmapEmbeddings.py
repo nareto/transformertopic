@@ -2,10 +2,10 @@ import pacmap
 from loguru import logger
 
 class PacmapEmbeddings():
-    def __init__(self, n_components=76):
+    def __init__(self, n_components=76, FP_ratio=2):
         # self.model = pacmap.PaCMAP(n_dims=2, n_neighbors=None, MN_ratio=0.5, FP_ratio=2.0) 
         self.n_components = n_components
-        self.model = pacmap.PaCMAP(n_dims = n_components, FP_ratio=4)
+        self.model = pacmap.PaCMAP(n_dims = n_components, FP_ratio=FP_ratio)
         self.model2d = pacmap.PaCMAP(n_dims = 2)
                                 
     def fit_transform(self, vectors):

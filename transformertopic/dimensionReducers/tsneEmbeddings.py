@@ -4,8 +4,8 @@ from loguru import logger
 class TsneEmbeddings():
     def __init__(self, n_components=76):
         self.n_components = n_components
-        self.model = TSNE(n_components=n_components)
-        self.model2d = TSNE(n_components= 2)
+        self.model = TSNE(n_components=n_components, init='pca', method='exact')
+        self.model2d = TSNE(n_components= 2, init ='pca', method='exact')
                                 
     def fit_transform(self, vectors):
         logger.debug(
