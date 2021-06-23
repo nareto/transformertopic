@@ -11,11 +11,10 @@ from loguru import logger
 from sentence_transformers import SentenceTransformer
 from sklearn.feature_extraction.text import CountVectorizer
 from spacy.lang.en import English
-from wordcloud import WordCloud
 
 from transformertopic.clusterRepresentators import TextRank
 from transformertopic.dimensionReducers import UmapEmbeddings
-from transformertopic.utils import generateTextId, scrambleDateColumn
+from transformertopic.utils import generateTextId, scrambleDateColumn, showWordCloudFromScoresDict
 
 Sentencizer = English()
 Sentencizer.add_pipe("sentencizer")
@@ -244,28 +243,19 @@ class TransformerTopic():
         plt.colorbar()
         plt.show()
 
-    def _computeClusterRepresentations(self, nKeywords=25):
+    def _computeClusterRepresentations(self, topics=None, nKeywords=25):
         """
         Computes representation of clusters for wordclouds.
         """
         if not self.runFullCompleted:
             raise Exception("No model computed")
-
-        self.clusterRepresentations = {k: {} for k in range(-1, self.nTopics)}
+        if topics is None:
+            topics = set(range(self.nTopics))
+        if self.clusterRepresentations is None:
+            self.clusterRepresentations = {k: {} for k in range(-1, self.nTopics)}
         firstbatchdf = self.df[self.df['batch'] == 1]
-        print(f"Computing {self.nTopics} cluster representations")
-        for cluster_idx in tqdm(range(self.nTopics)):
-            # def filterByClusterIdx(row):
-            #     if self.documentIdsToTopics[row["id"]] == cluster_idx:
-            #         return True
-            #     else:
-            #         return False
-
-            # clusterDocumentMask = firstbatchdf.apply(
-            #     filterByClusterIdx, axis=1)
-            # subDataFrame = firstbatchdf[clusterDocumentMask]
-            # topicToFullDocsJoined.append(
-            #     ". ".join(subDataFrame["text"].values))
+        print(f"Computing cluster representations for topics {topics}")
+        for cluster_idx in tqdm(topics):
             topicDf = firstbatchdf[firstbatchdf['topic'] == cluster_idx]
             documents = list(topicDf["text"])
             keywords, scores = self.clusterRepresentator.fit_transform(
@@ -283,18 +273,23 @@ class TransformerTopic():
         """
         if clusterRepresentator is None and self.clusterRepresentator is None:
             raise Exception("You need to pass a clusterRepresentator")
-        if self.clusterRepresentator is None or (clusterRepresentator is not None and (type(clusterRepresentator) != type(self.clusterRepresentator))):
-            self.clusterRepresentator = clusterRepresentator
-            self._computeClusterRepresentations()
         if topicsToShow is None:
             topicsToShow = set(range(self.nTopics))
+        else:
+            topicsToShow = set(topicsToShow)
+            if set(range(self.nTopics)).intersection(topicsToShow) != topicsToShow:
+                raise Exception(f"topicsToShow cannot include topics outside of -1..{self.nTopics - 1}")
+        topicsToCompute = topicsToShow
+        if type(clusterRepresentator) != type(self.clusterRepresentator):
+            self.clusterRepresentator = clusterRepresentator
+        elif self.clusterRepresentations is not None:
+            topicsToCompute = topicsToCompute.difference(set(self.clusterRepresentations.keys()))
+        if len(topicsToCompute) > 0:
+            self._computeClusterRepresentations(topicsToCompute)
         for topicIdx in topicsToShow:
-            wc = WordCloud(background_color="white", max_words=nWordsToShow)
-            wc.generate_from_frequencies(self.clusterRepresentations[topicIdx])
             print("Topic %d" % topicIdx)
-            plt.imshow(wc, interpolation="bilinear")
-            plt.axis("off")
-            plt.show()
+            wordScores = self.clusterRepresentations[topicIdx]
+            showWordCloudFromScoresDict(wordScores)
 
     def prettyPrintTopics(self, topicsToPrint=None, nWordsToShow=5):
         """
