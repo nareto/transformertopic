@@ -1,3 +1,3 @@
 from .scrambleDates import scrambleDateColumn
 from .generateTextId import generateTextId
-from .wordclouds import showWordCloudFromScoresDict
+from .wordclouds import showWordCloudFromScoresDict, showWordCloudFromDocuments
