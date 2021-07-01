@@ -273,17 +273,18 @@ class TransformerTopic():
         """
         if clusterRepresentator is None and self.clusterRepresentator is None:
             raise Exception("You need to pass a clusterRepresentator")
+        topicsToShowSet = set(topicsToShow)
         if topicsToShow is None:
-            topicsToShow = set(range(self.nTopics))
+            topicsToShow = list(range(self.nTopics))
         else:
-            topicsToShow = set(topicsToShow)
-            if set(range(self.nTopics)).intersection(topicsToShow) != topicsToShow:
+            if set(range(self.nTopics)).intersection(topicsToShowSet) != topicsToShowSet:
                 raise Exception(f"topicsToShow cannot include topics outside of -1..{self.nTopics - 1}")
-        topicsToCompute = topicsToShow
         if type(clusterRepresentator) != type(self.clusterRepresentator):
             self.clusterRepresentator = clusterRepresentator
-        elif self.clusterRepresentations is not None:
-            topicsToCompute = topicsToCompute.difference(set(self.clusterRepresentations.keys()))
+            topicsToCompute = topicsToShowSet
+        else:
+            assert self.clusterRepresentations is not None
+            topicsToCompute = topicsToShowSet.difference(set(self.clusterRepresentations.keys()))
         if len(topicsToCompute) > 0:
             self._computeClusterRepresentations(topicsToCompute)
         for topicIdx in topicsToShow:
