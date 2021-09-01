@@ -9,7 +9,6 @@ import seaborn as sns
 from tqdm import tqdm
 from loguru import logger
 from sentence_transformers import SentenceTransformer
-from sklearn.feature_extraction.text import CountVectorizer
 from spacy.lang.en import English
 
 from transformertopic.clusterRepresentators import TextRank
