@@ -2,7 +2,7 @@ import umap.umap_ as umap
 from loguru import logger
 
 class UmapEmbeddings():
-    def __init__(self, n_components = 76, umapNNeighbors=15):
+    def __init__(self, n_components = 76, umapNNeighbors=13):
         """
         umapNNeighbors: umap parameter. Higher => fewer topics.
         umapNComponents: umap parameter. Higher => higher clustering accuracy but slower.

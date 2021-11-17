@@ -2,7 +2,7 @@ import datetime as dt
 import pickle
 
 import hdbscan
-import matplotlib.pyplot as plt
+import seaborn as sns
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -24,7 +24,7 @@ class TransformerTopic():
     Class representing a BertTopic model.
     """
 
-    def __init__(self, dimensionReducer=None, hdbscanMinClusterSize=100, stEmbeddings=None):
+    def __init__(self, dimensionReducer=None, hdbscanMinClusterSize=25, stEmbeddings=None):
         """
         hdbscanMinClustersize: hdbscan parameter. Corresponds to minimum size of topic. Higher => fewer topics.
         """
@@ -40,22 +40,15 @@ class TransformerTopic():
         self.hdbscanClusterSelectionMethod = 'eom'
 
         # INPUT DATA
-        # self.originalDocumentsDataFrame = None
-        # "id" = None
-        # "date" = None
-        # self.textColumn = None
         self.nOriginalDocuments = 0
         self.df = None
         self.clusterRepresentator = None
 
         # GENERATED DATA
-        # self.topicIds = None
         self.twoDEmbeddings = None
         self.nBatches = 0
         self.nTopics = -1
         self.runFullCompleted = False
-        # self.documentIdsToTopics = None  # TODO: can remove? use fulldf instead
-        # self.topicsToDocumentIds = None  # TODO: can remove? use fulldf instead
         self.clusterRepresentations = None
         self.topicSizes = None
 
@@ -88,7 +81,7 @@ class TransformerTopic():
         dateColumn: name of column containing date of document
         textColumn: name of column containing text of document
         """
-        logger.debug("runFull: start")
+        logger.debug("train: start")
         self.nOriginalDocuments = len(documentsDataFrame)
         self.df = documentsDataFrame.copy()
         self.df = pd.DataFrame(self._getSplitSentencesData(
@@ -104,7 +97,7 @@ class TransformerTopic():
         texts = list(self.df["text"])
         # textIds = list(self.df["id"])
         logger.debug(
-            f"computing SentenceTransformer embeddings for {self.stEmbeddingsModel}")
+            f"train: computing SentenceTransformer embeddings for {self.stEmbeddingsModel}")
         self.stModel = SentenceTransformer(self.stEmbeddingsModel)
         self.stEmbeddings = {}
         self.stEmbeddings[1] = self.stModel.encode(
@@ -113,7 +106,7 @@ class TransformerTopic():
         self.reducedEmbeddings[1] = self.dimensionReducer.fit_transform(
             self.stEmbeddings[1])
         logger.debug(
-            f"Computing HDBSCAN with min_cluster_size = {self.hdbscanMinClusterSize}, metric = {self.hdbscanMetric}, cluster_selection_method = {self.hdbscanClusterSelectionMethod}"
+            f"train: computing HDBSCAN with min_cluster_size = {self.hdbscanMinClusterSize}, metric = {self.hdbscanMetric}, cluster_selection_method = {self.hdbscanClusterSelectionMethod}"
         )
         self.clusterer = hdbscan.HDBSCAN(min_cluster_size=self.hdbscanMinClusterSize,
                                          metric=self.hdbscanMetric,
@@ -131,7 +124,7 @@ class TransformerTopic():
             self.df.at[idx, "topic"] = int(label)
         self.nTopics = self.clusters[1].labels_.max() + 1
         self.runFullCompleted = True
-        logger.debug("runFull: completed")
+        logger.debug("train: completed")
 
     def _getSplitSentencesData(self,
                                dataFrame,
@@ -190,13 +183,13 @@ class TransformerTopic():
         textIds = list(tmpDf["id"])
         # sentence transformer
         logger.debug(
-            f"computing SentenceTransformer embeddings for {self.stEmbeddingsModel}")
+            f"infer: computing SentenceTransformer embeddings for {self.stEmbeddingsModel}")
         self.stEmbeddings[batch] = self.stModel.encode(
             texts, show_progress_bar=False)
         self.reducedEmbeddings[batch] = self.dimensionReducer.fit_transform(
             self.stEmbeddings[batch])
         logger.debug(
-            f"Computing HDBSCAN with min_cluster_size = {self.hdbscanMinClusterSize}, metric = {self.hdbscanMetric}, cluster_selection_method = {self.hdbscanClusterSelectionMethod}"
+            f"infer: computing HDBSCAN with min_cluster_size = {self.hdbscanMinClusterSize}, metric = {self.hdbscanMetric}, cluster_selection_method = {self.hdbscanClusterSelectionMethod}"
         )
         # hdbscan inference
         labels, strengths = hdbscan.approximate_predict(
@@ -208,7 +201,7 @@ class TransformerTopic():
             tmpDf.loc[tmpDf["id"] == tId, "topic"] = int(label)
         self.df = self.df.append(tmpDf)
         self.nBatches += 1
-        logger.debug("inference completed")
+        logger.debug("infer: inference completed")
 
     def _compute2dEmbeddings(self, batch):
         if not self.runFullCompleted:
@@ -358,9 +351,9 @@ class TransformerTopic():
                     indexes.append(str(topicIndexes[i]))
                 sizes.append(topicSizes[i])
         # print(f"index: {indexes}, sizes: {sizes}")
-        plt.bar(indexes, sizes)
-        plt.show()
-
+        # plt.bar(indexes, sizes)
+        # plt.show()
+        sns.barplot(x=indexes,y=sizes)
         return [int(k) for k in indexes]
 
     def showTopicTrends(self,

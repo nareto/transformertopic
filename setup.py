@@ -10,7 +10,7 @@ README = (HERE / "README.md").read_text()
 # This call to setup() does all the work
 setup(
     name="transformertopic",
-    version="1.0",
+    version="1.2",
     description="Topic modeling using sentence_transformer",
     long_description=README,
     long_description_content_type="text/markdown",
@@ -21,6 +21,7 @@ setup(
     packages=find_packages(),
     install_requires=["numpy",
                       "seaborn",
-                      "sentence_transformer",
+                      "sentence-transformers",
+                      "hdbscan",
                       "loguru"],
 )
