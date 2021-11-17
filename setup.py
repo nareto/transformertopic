@@ -10,7 +10,7 @@ README = (HERE / "README.md").read_text()
 # This call to setup() does all the work
 setup(
     name="transformertopic",
-    version="1.2",
+    version="1.3",
     description="Topic modeling using sentence_transformer",
     long_description=README,
     long_description_content_type="text/markdown",

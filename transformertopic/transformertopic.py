@@ -364,11 +364,12 @@ class TransformerTopic():
                         normalize=False
                         ):
         """
-        Show a time plot of popularity of topics.
+        Show a time plot of popularity of topics. On the y-axis the count of sentences in that topic is shown. If normalize is set to True, the percentage of sentences in that topic (when considering all the sentences in the whole corpus in that time slot) is shown.
 
         topicsToShow: set with topics indexes to print. If None all topics are chosen.
         batches: which batches to include. If None include all known documents.
         resamplePeriod: resample to pass to pandas.DataFrame.resample.
+        normalize: if False count of sentences is shown. If True percentages relative to the whole corpus.
         scrambleDates: if True, redistributes dates that are on 1st of the month (year) uniformly in that month (year)
         """
 
@@ -381,30 +382,34 @@ class TransformerTopic():
         else:
             df = self.df
 
+        #we need to build a common index to plot all the resampled time series against
         date_range = self.df[self.df['topic'] != -1].set_index('date')
         alltimes = date_range.resample(resamplePeriod).count()['id']
+
         df = df[df['batch'].isin(batches)]
-        resampledDfs = []
-        resampledColumns = []
-        for e, n in enumerate(topicsToShow):
-            tseries = df.loc[df["topic"] == n, ["date", "topic"]]
+        resampledDfs = {}
+        resampledColumns = {}
+        topicsToResample = topicsToShow if not normalize else list(range(self.nTopics))
+        for topicIdx in topicsToResample:
+            tseries = df.loc[df["topic"] == topicIdx, ["date", "topic"]]
             tseries = tseries.set_index("date")
             resampled = tseries.resample(resamplePeriod).count().rename(
                 {"topic": 'count'}, axis=1)['count']
+            #use the common index
             resampled = resampled.reindex(alltimes.index, method='ffill')
             resampled.sort_index(inplace=True)
-            resampledDfs.append(resampled)
-            resampledColumns.append('Topic %d' % n)
+            resampledDfs[topicIdx] = resampled
+            resampledColumns[topicIdx] = 'Topic %d' % topicIdx
         if normalize:
-            totsum = resampledDfs[0].fillna(0)
-            for rs in resampledDfs[1:]:
-                totsum = totsum + rs.fillna(0)
-            normalizedDfs = []
-            for rs in resampledDfs:
-                normalizedDfs.append(rs/totsum)
+            from functools import reduce
+            totsum = reduce(lambda x,y: x + y, resampledDfs.values())
+            normalizedDfs = {}
+            for topicIdx, rs in resampledDfs.items():
+                normalizedDfs[topicIdx] = (rs/totsum).fillna(0)
             resampledDfs = normalizedDfs
-        dfToPlot = pd.DataFrame(columns=resampledColumns, index=alltimes.index)
-        for e, rdf in enumerate(resampledDfs):
-            topicColumn = resampledColumns[e]
-            dfToPlot[topicColumn] = rdf
+        dfToPlot = pd.DataFrame(columns=resampledColumns.values(), index=alltimes.index)
+        for topicIdx, resampled_df in resampledDfs.items():
+            topicColumn = resampledColumns[topicIdx]
+            dfToPlot[topicColumn] = resampled_df
         dfToPlot.interpolate(method='linear').plot()
+        return dfToPlot

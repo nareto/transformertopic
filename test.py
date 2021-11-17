@@ -46,4 +46,38 @@ representator = Tfidf()
 tt.showWordclouds(topNtopics, clusterRepresentator=representator)
 
 #%%
-tt.showTopicTrends()
+dftp = tt.showTopicTrends(resamplePeriod="1d", normalize=False)
+#%%
+dftp
+#%%
+topicsToShow = [0,1]
+resamplePeriod = '1M'
+date_range = tt.df[tt.df['topic'] != -1].set_index('date')
+alltimes = date_range.resample(resamplePeriod).count()['id']
+
+resampledDfs = []
+resampledColumns = []
+for e, n in enumerate(topicsToShow):
+    tseries = tt.df.loc[tt.df["topic"] == n, ["date", "topic"]]
+    tseries = tseries.set_index("date")
+    resampled = tseries.resample(resamplePeriod).count().rename(
+        {"topic": 'count'}, axis=1)['count']
+    resampled = resampled.reindex(alltimes.index, method='ffill')
+    resampled.sort_index(inplace=True)
+    resampledDfs.append(resampled)
+    resampledColumns.append('Topic %d' % n)
+resampledDfs
+# %%
+date_range
+alltimes
+# tt.df
+tot = resampledDfs[0].fillna(0) + resampledDfs[1].fillna(0)
+tot
+resampledDfs[0]/tot
+4/6
+list(range(tt.nTopics))
+#%%
+drsf = {tid: resampledDfs[tid] for tid in topicsToShow}
+#%%
+from functools import reduce
+reduce(lambda x,y: x + y, drsf.values())
