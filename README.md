@@ -1,8 +1,8 @@
 # transformertopic
 Topic Modeling using sentence embeddings. This procedure works very well: in practice it almost always produces sensible topics and (from a practical point of view) renders all LDA variants obsolete. 
 
-This is my own implementation of the procedure described [here](https://towardsdatascience.com/topic-modeling-with-bert-779f7db187e6) by Maarten Grootendorst, who also has his own implementation available 
-[here](https://github.com/MaartenGr/BERTopic). 
+This is my own implementation of the procedure described [here](https://towardsdatascience.com/topic-modeling-with-bert-779f7db187e6) by *Maarten Grootendorst*, who also has his own implementation available 
+[here](https://github.com/MaartenGr/BERTopic). Thanks for this brilliant idea! 
 
 I wanted to code it myself and have features marked with a ⭐, which as far as I know are not available in Grootendorst's implementation.
 
