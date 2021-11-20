@@ -68,16 +68,18 @@ class TransformerTopic():
     def saveCsv(self, filepath):
         self.df.to_csv(filepath)
 
-    def loadCsv(self, filepath):
+    def loadCsv(self, filepath, dateColumn='date', textColumn = 'text'):
         self.df = pd.read_csv(filepath)
+        self.df.rename(columns={dateColumn: 'date', textColumn: 'text'})
+        self.df['date'] = pd.to_datetime(self.df['date'])
         self.nTopics = 1 + int(self.df['topic'].max())
         self.nBatches = int(self.df['batch'].max())
 
     def train(
             self,
             documentsDataFrame,
-            dateColumn,
-            textColumn,
+            dateColumn='date',
+            textColumn='text',
             idColumn=None,
             copyOtherColumns=False
     ):
@@ -413,9 +415,12 @@ class TransformerTopic():
             for topicIdx, rs in resampledDfs.items():
                 normalizedDfs[topicIdx] = (rs/totsum).fillna(0)
             resampledDfs = normalizedDfs
-        dfToPlot = pd.DataFrame(columns=resampledColumns.values(), index=alltimes.index)
-        for topicIdx, resampled_df in resampledDfs.items():
-            topicColumn = resampledColumns[topicIdx]
-            dfToPlot[topicColumn] = resampled_df
+        
+        # dfToPlot = pd.DataFrame(columns=[resampledColumns[tidx] for tidx in topicsToShow], index=alltimes.index)
+        dfToPlot = pd.DataFrame(index=alltimes.index)
+        for topicIdx in topicsToShow:
+            rsDf = resampledDfs[topicIdx]
+            column = resampledColumns[topicIdx]
+            dfToPlot[column] = rsDf
         dfToPlot.interpolate(method='linear').plot()
         return dfToPlot

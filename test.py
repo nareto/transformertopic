@@ -34,7 +34,7 @@ print(f"Found {tt.nTopics} topics")
 # print(tt.df.info())
 
 # %% Show sizes of largest topics
-N = 10
+N = 1
 topNtopics = tt.showTopicSizes(N)
 
 
@@ -48,7 +48,7 @@ tt.showWordclouds(topNtopics, clusterRepresentator=representator)
 #%%
 dftp = tt.showTopicTrends(resamplePeriod="1d", normalize=False)
 #%%
-dftp
+dftp = tt.showTopicTrends(topicsToShow=topNtopics, resamplePeriod="1d", normalize=True)
 #%%
 topicsToShow = [0,1]
 resamplePeriod = '1M'
