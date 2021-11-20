@@ -1,7 +1,7 @@
 # transformertopic
-Topic Modeling using sentence embeddings. 
+Topic Modeling using sentence embeddings. This procedure works very well: in practice it almost always produces sensible topics and (from a practical point of view) renders all LDA variants obsolete. 
 
-This is inspired by the Topic Modeling procedure described [here](https://towardsdatascience.com/topic-modeling-with-bert-779f7db187e6) by Maarten Grootendorst, who also has his own implementation available 
+This is my own implementation of the procedure described [here](https://towardsdatascience.com/topic-modeling-with-bert-779f7db187e6) by Maarten Grootendorst, who also has his own implementation available 
 [here](https://github.com/MaartenGr/BERTopic). 
 
 I wanted to code it myself and have features marked with a ⭐, which as far as I know are not available in Grootendorst's implementation.
@@ -15,7 +15,7 @@ Features:
 - ⭐ Infer topics of new batches of docs without retraining
 
 # How it works
-In the following the words "cluster" and "topic" are here used interchangeably. Please note that in classic Topic Modeling procedures (e.g. those based on [LDA](https://en.wikipedia.org/wiki/Latent_Dirichlet_allocation)) each document is a probability distribution over topics. In this sense the procedure here presented could be considered as a special case where these distributions are always degenerate and concentrate the probability on one single index.
+In the following the words "cluster" and "topic" are used interchangeably. Please note that in classic Topic Modeling procedures (e.g. those based on [LDA](https://en.wikipedia.org/wiki/Latent_Dirichlet_allocation)) each document is a probability distribution over topics. In this sense the procedure here presented could be considered as a special case where these distributions are always degenerate and concentrate the probability on one single index.
 
 The procedure is: 
 
