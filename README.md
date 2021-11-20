@@ -18,12 +18,16 @@ Features:
 
 The procedure is: 
 
-1. split paragraphs in sentences
-2. compute sentence embeddings
-3. compute dimension reduction of these embeddings
-4. cluster them with HDBSCAN
-5. compute a human-readable representation of each cluster/topic
+1. split paragraphs into sentences
+2. compute sentence embeddings (using [sentence transformers](https://github.com/UKPLab/sentence-transformers))
+3. compute dimension reduction of these embeddings (with [umap](https://github.com/lmcinnes/umap), [pacmap](https://github.com/YingfanWang/PaCMAP), [tsne](https://scikit-learn.org/stable/modules/generated/sklearn.manifold.TSNE.html) or [pca](https://scikit-learn.org/stable/modules/generated/sklearn.decomposition.PCA.html))
+4. cluster them with [HDBSCAN](https://github.com/scikit-learn-contrib/hdbscan) [^cluster]
+5. for each topic compute a "cluster representator": a dictionary with words as keys and ranks as values (using [tfidf](https://en.wikipedia.org/wiki/Tf-idf), [textrank](https://derwen.ai/docs/ptr/) or [kmaxoids](http://ceur-ws.org/Vol-1458/E19_CRC4_Bauckhage.pdf) [^1])
+6. use the cluster representators to compute [wordcloud](https://github.com/amueller/word_cloud)s for each topic
 
+[^cluster]: the words clusters and topics are here used interchangeably
+
+[^1]: my own implementation, see [kmaxoids.py](https://github.com/nareto/transformertopic/blob/master/transformertopic/clusterRepresentators/kmaxoids.py)
 
 # Installation
 
