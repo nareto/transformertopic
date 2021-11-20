@@ -1,4 +1,5 @@
 import datetime as dt
+from logging import raiseExceptions
 import pickle
 
 import hdbscan
@@ -51,6 +52,9 @@ class TransformerTopic():
         self.runFullCompleted = False
         self.clusterRepresentations = None
         self.topicSizes = None
+        self.stEmbeddings = None
+        self.reducedEmbeddings = None
+        self.clusters = None
 
     def savePickle(self, filepath):
         f = open(filepath, 'wb')
@@ -77,7 +81,7 @@ class TransformerTopic():
 
     def train(
             self,
-            documentsDataFrame,
+            documentsDataFrame = None,
             dateColumn='date',
             textColumn='text',
             idColumn=None,
@@ -92,40 +96,46 @@ class TransformerTopic():
         textColumn: name of column containing text of document
         """
         logger.debug("train: start")
-        self.nOriginalDocuments = len(documentsDataFrame)
-        self.df = documentsDataFrame.copy()
-        self.df = pd.DataFrame(self._getSplitSentencesData(
-            dataFrame=self.df,
-            dateColumn=dateColumn,
-            textColumn=textColumn,
-            idColumn=idColumn,
-            copyOtherColumns=copyOtherColumns
-        ))
-        self.df["date"] = pd.to_datetime(self.df["date"])
-        self.df['batch'] = 1
-        self.nBatches = 1
+        if documentsDataFrame is not None:
+            self.nOriginalDocuments = len(documentsDataFrame)
+            self.df = documentsDataFrame.copy()
+            self.df = pd.DataFrame(self._getSplitSentencesData(
+                dataFrame=self.df,
+                dateColumn=dateColumn,
+                textColumn=textColumn,
+                idColumn=idColumn,
+                copyOtherColumns=copyOtherColumns
+            ))
+            self.df["date"] = pd.to_datetime(self.df["date"])
+            self.df['batch'] = 1
+            self.nBatches = 1
+        elif self.df is None:
+            raise(Exception("Either pass documentsDataFrame or self.df should not be None"))
         texts = list(self.df["text"])
         # textIds = list(self.df["id"])
-        logger.debug(
-            f"train: computing SentenceTransformer embeddings for {self.stEmbeddingsModel}")
-        self.stModel = SentenceTransformer(self.stEmbeddingsModel)
-        self.stEmbeddings = {}
-        self.stEmbeddings[1] = self.stModel.encode(
-            texts, show_progress_bar=False)
-        self.reducedEmbeddings = {}
-        self.reducedEmbeddings[1] = self.dimensionReducer.fit_transform(
-            self.stEmbeddings[1])
-        logger.debug(
-            f"train: computing HDBSCAN with min_cluster_size = {self.hdbscanMinClusterSize}, metric = {self.hdbscanMetric}, cluster_selection_method = {self.hdbscanClusterSelectionMethod}"
-        )
-        self.clusterer = hdbscan.HDBSCAN(min_cluster_size=self.hdbscanMinClusterSize,
-                                         metric=self.hdbscanMetric,
-                                         cluster_selection_method=self.hdbscanClusterSelectionMethod,
-                                         prediction_data=True)
-        self.clusters = {}
-        self.clusters[1] = self.clusterer.fit(self.reducedEmbeddings[1])
-        # self.documentIdsToTopics = {}
-        # self.topicsToDocumentIds = {k: set() for k in self.clusters[1].labels_}
+        if self.stEmbeddings is None:
+            logger.debug(
+                f"train: computing SentenceTransformer embeddings for {self.stEmbeddingsModel}")
+            self.stModel = SentenceTransformer(self.stEmbeddingsModel)
+            self.stEmbeddings = {}
+            self.stEmbeddings[1] = self.stModel.encode(
+                texts, show_progress_bar=False)
+        if self.reducedEmbeddings is None:
+            self.reducedEmbeddings = {}
+            self.reducedEmbeddings[1] = self.dimensionReducer.fit_transform(
+                self.stEmbeddings[1])
+        if self.clusters is None:
+            logger.debug(
+                f"train: computing HDBSCAN with min_cluster_size = {self.hdbscanMinClusterSize}, metric = {self.hdbscanMetric}, cluster_selection_method = {self.hdbscanClusterSelectionMethod}"
+            )
+            self.clusterer = hdbscan.HDBSCAN(min_cluster_size=self.hdbscanMinClusterSize,
+                                            metric=self.hdbscanMetric,
+                                            cluster_selection_method=self.hdbscanClusterSelectionMethod,
+                                            prediction_data=True)
+            self.clusters = {}
+            self.clusters[1] = self.clusterer.fit(self.reducedEmbeddings[1])
+            # self.documentIdsToTopics = {}
+            # self.topicsToDocumentIds = {k: set() for k in self.clusters[1].labels_}
         for doubleIdx, label in np.ndenumerate(self.clusters[1].labels_):
             idx = doubleIdx[0]
             # tId = textIds[idx]
