@@ -1,11 +1,5 @@
-## transformertopic
-Topic Modeling using sentence embeddings. The procedure is: 
-
-1. split paragraphs in sentences
-2. compute sentence embeddings
-3. compute dimension reduction of these embeddings
-4. cluster them with HDBSCAN
-5. compute a human-readable representation of each cluster/topic
+# transformertopic
+Topic Modeling using sentence embeddings. 
 
 This is inspired by the Topic Modeling procedure described [here](https://towardsdatascience.com/topic-modeling-with-bert-779f7db187e6) by Maarten Grootendorst, who also has his own implementation available 
 [here](https://github.com/MaartenGr/BERTopic). 
@@ -19,6 +13,17 @@ Features:
 - ⭐ Experiment with different dimension reducers
 - ⭐ Experiment with different ways to generate a wordcloud from a topic
 - ⭐ Infer topics of new batches of docs without retraining
+
+# How it works
+
+The procedure is: 
+
+1. split paragraphs in sentences
+2. compute sentence embeddings
+3. compute dimension reduction of these embeddings
+4. cluster them with HDBSCAN
+5. compute a human-readable representation of each cluster/topic
+
 
 # Installation
 
