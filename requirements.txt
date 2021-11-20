@@ -1,5 +1,0 @@
-hdbscan
-seaborn
-pandas
-numpy
-sentence_transformers

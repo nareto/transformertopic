@@ -20,6 +20,9 @@ Features:
 - ⭐ Experiment with different ways to generate a wordcloud from a topic
 - ⭐ Infer topics of new batches of docs without retraining
 
+# Installation
+
+    pip install -U transformertopic
 
 # Usage
 View also `test.py`.
