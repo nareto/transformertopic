@@ -65,6 +65,14 @@ class TransformerTopic():
         self.__dict__.update(tmpdict)
         logger.debug(f"Loaded class from {filepath}")
 
+    def saveCsv(self, filepath):
+        self.df.to_csv(filepath)
+
+    def loadCsv(self, filepath):
+        self.df = pd.read_csv(filepath)
+        self.nTopics = 1 + int(self.df['topic'].max())
+        self.nBatches = int(self.df['batch'].max())
+
     def train(
             self,
             documentsDataFrame,
@@ -239,8 +247,6 @@ class TransformerTopic():
         """
         Computes representation of clusters for wordclouds.
         """
-        if not self.runFullCompleted:
-            raise Exception("No model computed")
         if topics is None:
             topics = set(range(self.nTopics))
         if self.clusterRepresentations is None:
@@ -323,7 +329,7 @@ class TransformerTopic():
         else:
             plotIndexIsRange = False
         topicIndexes = []
-        topicSizes = []
+        self.topicSizes = []
         df = self.df
         for k in range(self.nTopics):
             # docsK = self.topicsToDocumentIds[k]
@@ -334,13 +340,13 @@ class TransformerTopic():
                     topicIndexes.append(k)
                 else:
                     topicIndexes.append(str(k))
-                topicSizes.append(ndocs)
-        # logger.debug(f"batches: {batches}, topicsizes: {topicSizes}")
+                self.topicSizes.append(ndocs)
+        # logger.debug(f"batches: {batches}, self.topicSizes: {self.topicSizes}")
         if showTopNTopics is None:
             indexes = topicIndexes
-            sizes = topicSizes
+            sizes = self.topicSizes
         else:
-            argsort = np.argsort(topicSizes)[::-1]
+            argsort = np.argsort(self.topicSizes)[::-1]
             indexes = []
             sizes = []
             for i in argsort[:showTopNTopics]:
@@ -349,7 +355,7 @@ class TransformerTopic():
                     indexes.append(topicIndexes[i])
                 else:
                     indexes.append(str(topicIndexes[i]))
-                sizes.append(topicSizes[i])
+                sizes.append(self.topicSizes[i])
         # print(f"index: {indexes}, sizes: {sizes}")
         # plt.bar(indexes, sizes)
         # plt.show()
