@@ -13,6 +13,7 @@ from sentence_transformers import SentenceTransformer
 from spacy.lang.en import English
 
 from transformertopic.clusterRepresentators import TextRank
+from transformertopic.clusterRepresentators.tfidf import Tfidf
 from transformertopic.dimensionReducers import UmapEmbeddings
 from transformertopic.utils import generateTextId, scrambleDateColumn, showWordCloudFromScoresDict
 
@@ -28,6 +29,7 @@ class TransformerTopic():
     def __init__(self, dimensionReducer=None, hdbscanMinClusterSize=25, stEmbeddings=None):
         """
         hdbscanMinClustersize: hdbscan parameter. Corresponds to minimum size of topic. Higher => fewer topics.
+        stEmbeddings: embeddings model for SentenceTransformer. See available models at https://huggingface.co/sentence-transformers?sort=downloads
         """
         if dimensionReducer is None:
             dimensionReducer = UmapEmbeddings()
@@ -55,6 +57,7 @@ class TransformerTopic():
         self.stEmbeddings = None
         self.reducedEmbeddings = None
         self.clusters = None
+        self.topicNames = None
 
     def savePickle(self, filepath):
         f = open(filepath, 'wb')
@@ -72,7 +75,7 @@ class TransformerTopic():
     def saveCsv(self, filepath):
         self.df.to_csv(filepath)
 
-    def loadCsv(self, filepath, dateColumn='date', textColumn = 'text'):
+    def loadCsv(self, filepath, dateColumn='date', textColumn='text'):
         self.df = pd.read_csv(filepath)
         self.df.rename(columns={dateColumn: 'date', textColumn: 'text'})
         self.df['date'] = pd.to_datetime(self.df['date'])
@@ -81,7 +84,7 @@ class TransformerTopic():
 
     def train(
             self,
-            documentsDataFrame = None,
+            documentsDataFrame=None,
             dateColumn='date',
             textColumn='text',
             idColumn=None,
@@ -110,7 +113,8 @@ class TransformerTopic():
             self.df['batch'] = 1
             self.nBatches = 1
         elif self.df is None:
-            raise(Exception("Either pass documentsDataFrame or self.df should not be None"))
+            raise(
+                Exception("Either pass documentsDataFrame or self.df should not be None"))
         texts = list(self.df["text"])
         # textIds = list(self.df["id"])
         if self.stEmbeddings is None:
@@ -129,9 +133,9 @@ class TransformerTopic():
                 f"train: computing HDBSCAN with min_cluster_size = {self.hdbscanMinClusterSize}, metric = {self.hdbscanMetric}, cluster_selection_method = {self.hdbscanClusterSelectionMethod}"
             )
             self.clusterer = hdbscan.HDBSCAN(min_cluster_size=self.hdbscanMinClusterSize,
-                                            metric=self.hdbscanMetric,
-                                            cluster_selection_method=self.hdbscanClusterSelectionMethod,
-                                            prediction_data=True)
+                                             metric=self.hdbscanMetric,
+                                             cluster_selection_method=self.hdbscanClusterSelectionMethod,
+                                             prediction_data=True)
             self.clusters = {}
             self.clusters[1] = self.clusterer.fit(self.reducedEmbeddings[1])
             # self.documentIdsToTopics = {}
@@ -255,17 +259,34 @@ class TransformerTopic():
         plt.colorbar()
         plt.show()
 
-    def _computeClusterRepresentations(self, topics=None, nKeywords=25):
+    def _computeClusterRepresentations(self,
+                                       topics=None,
+                                       nKeywords=25,
+                                       clusterRepresentator=None,
+                                       ):
         """
         Computes representation of clusters for wordclouds.
         """
         if topics is None:
-            topics = set(range(self.nTopics))
-        if self.clusterRepresentations is None:
-            self.clusterRepresentations = {k: {} for k in range(-1, self.nTopics)}
+            topics = range(self.nTopics)
+        topicSet = set(topics)
+        if clusterRepresentator is None and self.clusterRepresentator is None:
+            self.clusterRepresentator = Tfidf()
+        if self.clusterRepresentator is None or (clusterRepresentator is not None and clusterRepresentator != self.clusterRepresentator):
+            self.clusterRepresentator = clusterRepresentator
+            self.clusterRepresentations = {}
+            self.topicNames = {}
+            topicsToCompute = topicSet
+        else:
+            assert self.clusterRepresentations is not None
+            topicsToCompute = topicSet.difference(
+                set(self.clusterRepresentations.keys()))
         firstbatchdf = self.df[self.df['batch'] == 1]
-        print(f"Computing cluster representations for topics {topics}")
-        for cluster_idx in tqdm(topics):
+        if len(topicsToCompute) == 0:
+            return
+        print(
+            f"Computing cluster representations for topics {topicsToCompute}")
+        for cluster_idx in tqdm(topicsToCompute):
             topicDf = firstbatchdf[firstbatchdf['topic'] == cluster_idx]
             documents = list(topicDf["text"])
             keywords, scores = self.clusterRepresentator.fit_transform(
@@ -273,34 +294,56 @@ class TransformerTopic():
             assert len(keywords) == len(scores)
             self.clusterRepresentations[cluster_idx] = {
                 keywords[i]: scores[i] for i in range(len(keywords))}
+            self.topicNames[cluster_idx] = "_".join(
+                keywords[:4])+"."+str(cluster_idx)
 
-    def showWordclouds(self, topicsToShow=None, nWordsToShow=15, clusterRepresentator=None):
+    def showWordclouds(self,
+                       topicsToShow=None,
+                       nWordsToShow=25,
+                       clusterRepresentator=None
+                       ):
         """
-        Show wordclouds.
+        Computes cluster representations and uses them to show wordclouds.
 
         topicsToShow: set with topics indexes to print. If None all topics are chosen.
         nWordsToShow: how many words to show for each topic
+        clusterRepresentator: an instance of a clusterRepresentator 
         """
-        if clusterRepresentator is None and self.clusterRepresentator is None:
-            raise Exception("You need to pass a clusterRepresentator")
-        topicsToShowSet = set(topicsToShow)
-        if topicsToShow is None:
-            topicsToShow = list(range(self.nTopics))
-        else:
-            if set(range(self.nTopics)).intersection(topicsToShowSet) != topicsToShowSet:
-                raise Exception(f"topicsToShow cannot include topics outside of -1..{self.nTopics - 1}")
-        if type(clusterRepresentator) != type(self.clusterRepresentator):
-            self.clusterRepresentator = clusterRepresentator
-            topicsToCompute = topicsToShowSet
-        else:
-            assert self.clusterRepresentations is not None
-            topicsToCompute = topicsToShowSet.difference(set(self.clusterRepresentations.keys()))
-        if len(topicsToCompute) > 0:
-            self._computeClusterRepresentations(topicsToCompute)
+        self._computeClusterRepresentations(
+            topics=topicsToShow,
+            nKeywords=nWordsToShow,
+            clusterRepresentator=clusterRepresentator
+        )
         for topicIdx in topicsToShow:
             print("Topic %d" % topicIdx)
             wordScores = self.clusterRepresentations[topicIdx]
-            showWordCloudFromScoresDict(wordScores)
+            showWordCloudFromScoresDict(wordScores, max_words=nWordsToShow)
+
+    def searchForWordInTopics(self,
+                              word,
+                              topicsToSearch=None,
+                              topNWords=15,
+                              clusterRepresentator=None):
+        """
+        Returns any topic containing 'word' in the topNWords of its cluster representation
+
+        word: the word to look for
+        topicsToSearch: set with topics indexes to search in. If None all topics are searched in.
+        nWordsToShow: how many words to show for each topic
+        clusterRepresentator: an instance of a clusterRepresentator 
+        """
+        if topicsToSearch is None:
+            topicsToSearch = set(range(self.nTopics))
+        self._computeClusterRepresentations(
+            topics=topicsToSearch,
+            nKeywords=topNWords,
+            clusterRepresentator=clusterRepresentator
+        )
+        positive_topics = set()
+        for tidx in topicsToSearch:
+            if word in self.clusterRepresentations[tidx].keys():
+                positive_topics.add(tidx)
+        return positive_topics
 
     def prettyPrintTopics(self, topicsToPrint=None, nWordsToShow=5):
         """
@@ -371,7 +414,7 @@ class TransformerTopic():
         # print(f"index: {indexes}, sizes: {sizes}")
         # plt.bar(indexes, sizes)
         # plt.show()
-        sns.barplot(x=indexes,y=sizes)
+        sns.barplot(x=indexes, y=sizes, palette='colorblind')
         return [int(k) for k in indexes]
 
     def showTopicTrends(self,
@@ -379,7 +422,9 @@ class TransformerTopic():
                         batches=None,
                         resamplePeriod='6M',
                         scrambleDates=False,
-                        normalize=False
+                        normalize=False,
+                        fromDate=None,
+                        toDate=None
                         ):
         """
         Show a time plot of popularity of topics. On the y-axis the count of sentences in that topic is shown. If normalize is set to True, the percentage of sentences in that topic (when considering all the sentences in the whole corpus in that time slot) is shown.
@@ -391,6 +436,7 @@ class TransformerTopic():
         scrambleDates: if True, redistributes dates that are on 1st of the month (year) uniformly in that month (year)
         """
 
+        self._computeClusterRepresentations(topics=topicsToShow)
         if topicsToShow is None:
             topicsToShow = range(self.nTopics)
         if batches is None:
@@ -400,37 +446,42 @@ class TransformerTopic():
         else:
             df = self.df
 
-        #we need to build a common index to plot all the resampled time series against
+        # we need to build a common index to plot all the resampled time series against
         date_range = self.df[self.df['topic'] != -1].set_index('date')
         alltimes = date_range.resample(resamplePeriod).count()['id']
 
         df = df[df['batch'].isin(batches)]
         resampledDfs = {}
         resampledColumns = {}
-        topicsToResample = topicsToShow if not normalize else list(range(self.nTopics))
+        topicsToResample = topicsToShow if not normalize else list(
+            range(self.nTopics))
         for topicIdx in topicsToResample:
             tseries = df.loc[df["topic"] == topicIdx, ["date", "topic"]]
             tseries = tseries.set_index("date")
             resampled = tseries.resample(resamplePeriod).count().rename(
                 {"topic": 'count'}, axis=1)['count']
-            #use the common index
+            # use the common index
             resampled = resampled.reindex(alltimes.index, method='ffill')
             resampled.sort_index(inplace=True)
-            resampledDfs[topicIdx] = resampled
-            resampledColumns[topicIdx] = 'Topic %d' % topicIdx
+            resampledDfs[topicIdx] = resampled.fillna(0)
+            resampledColumns[topicIdx] = self.topicNames[topicIdx] if topicIdx in self.topicNames else 'Topic %d' % topicIdx
         if normalize:
             from functools import reduce
-            totsum = reduce(lambda x,y: x + y, resampledDfs.values())
+            totsum = reduce(lambda x, y: x + y, resampledDfs.values())
             normalizedDfs = {}
             for topicIdx, rs in resampledDfs.items():
                 normalizedDfs[topicIdx] = (rs/totsum).fillna(0)
             resampledDfs = normalizedDfs
-        
+
         # dfToPlot = pd.DataFrame(columns=[resampledColumns[tidx] for tidx in topicsToShow], index=alltimes.index)
         dfToPlot = pd.DataFrame(index=alltimes.index)
         for topicIdx in topicsToShow:
             rsDf = resampledDfs[topicIdx]
             column = resampledColumns[topicIdx]
             dfToPlot[column] = rsDf
+        if fromDate is not None:
+            dfToPlot = dfToPlot.loc[dfToPlot.index > fromDate]
+        if toDate is not None:
+            dfToPlot = dfToPlot.loc[dfToPlot.index < toDate]
         dfToPlot.interpolate(method='linear').plot()
         return dfToPlot
