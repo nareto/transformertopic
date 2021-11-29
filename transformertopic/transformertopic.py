@@ -300,7 +300,8 @@ class TransformerTopic():
     def showWordclouds(self,
                        topicsToShow=None,
                        nWordsToShow=25,
-                       clusterRepresentator=None
+                       clusterRepresentator=None,
+                       saveToFilepath=None
                        ):
         """
         Computes cluster representations and uses them to show wordclouds.
@@ -308,6 +309,7 @@ class TransformerTopic():
         topicsToShow: set with topics indexes to print. If None all topics are chosen.
         nWordsToShow: how many words to show for each topic
         clusterRepresentator: an instance of a clusterRepresentator 
+        saveToFilepath: save the wordcloud to this filepath
         """
         self._computeClusterRepresentations(
             topics=topicsToShow,
@@ -317,7 +319,8 @@ class TransformerTopic():
         for topicIdx in topicsToShow:
             print("Topic %d" % topicIdx)
             wordScores = self.clusterRepresentations[topicIdx]
-            showWordCloudFromScoresDict(wordScores, max_words=nWordsToShow)
+            showWordCloudFromScoresDict(
+                wordScores, max_words=nWordsToShow, filepath=saveToFilepath)
 
     def searchForWordInTopics(self,
                               word,
@@ -365,7 +368,10 @@ class TransformerTopic():
             for word, frequency in wordFrequencies[:nWordsToShow]:
                 print("\n%10s:%2.3f" % (word, frequency))
 
-    def showTopicSizes(self, showTopNTopics=None, minSize=None, showNoTopic=False, batches=None):
+    def showTopicSizes(self,
+                       showTopNTopics=None,
+                       minSize=None,
+                       batches=None):
         """
         Show bar chart with topic sizes (n. of documents).
 
@@ -373,7 +379,6 @@ class TransformerTopic():
 
         showTopNTopics: if integer, show only this number of largest sized topics. If None it is ignored. 
         minSize: show only topics with bigger size than this. If None ignore
-        showNoTopic: show also topic -1, i.e. "noise" documents.
         batches: which batches to include. If None include all known documents.
         """
 
@@ -414,7 +419,14 @@ class TransformerTopic():
         # print(f"index: {indexes}, sizes: {sizes}")
         # plt.bar(indexes, sizes)
         # plt.show()
-        sns.barplot(x=indexes, y=sizes, palette='colorblind')
+        plot_ = sns.barplot(x=indexes, y=sizes, palette='colorblind')
+        if len(indexes) > 25:
+            modulo = len(indexes) // 20
+            for ind, label in enumerate(plot_.get_xticklabels()):
+                if ind % modulo == 0:  # every 10th label is kept
+                    label.set_visible(True)
+                else:
+                    label.set_visible(False)
         return [int(k) for k in indexes]
 
     def showTopicTrends(self,
@@ -424,7 +436,9 @@ class TransformerTopic():
                         scrambleDates=False,
                         normalize=False,
                         fromDate=None,
-                        toDate=None
+                        toDate=None,
+                        saveToFilepath=None,
+                        **plotkwargs
                         ):
         """
         Show a time plot of popularity of topics. On the y-axis the count of sentences in that topic is shown. If normalize is set to True, the percentage of sentences in that topic (when considering all the sentences in the whole corpus in that time slot) is shown.
@@ -483,5 +497,7 @@ class TransformerTopic():
             dfToPlot = dfToPlot.loc[dfToPlot.index > fromDate]
         if toDate is not None:
             dfToPlot = dfToPlot.loc[dfToPlot.index < toDate]
-        dfToPlot.interpolate(method='linear').plot()
+        axis = dfToPlot.interpolate(method='linear').plot(**plotkwargs)
+        if saveToFilepath is not None:
+            axis.figure.savefig(saveToFilepath)
         return dfToPlot

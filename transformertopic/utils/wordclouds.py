@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 from wordcloud import WordCloud
 
 
-def showWordCloudFromScoresDict(wordScoreDict, max_words=25):
+def showWordCloudFromScoresDict(wordScoreDict, max_words=25,filepath=None):
     """
     Show word-cloud.
 
@@ -14,10 +14,12 @@ def showWordCloudFromScoresDict(wordScoreDict, max_words=25):
     wc.generate_from_frequencies(wordScoreDict)
     plt.imshow(wc, interpolation="bilinear")
     plt.axis("off")
+    if filepath is not None:
+        plt.savefig(filepath)
     plt.show()
 
 
-def showWordCloudFromDocuments(documents, clusterRepresentator, max_words=25):
+def showWordCloudFromDocuments(documents, clusterRepresentator, max_words=25, filepath=None):
     """
     Show word-cloud for list of documents using clusterRepresentator.
 
@@ -28,4 +30,4 @@ def showWordCloudFromDocuments(documents, clusterRepresentator, max_words=25):
         documents, max_words)
     assert len(keywords) == len(scores)
     wordScoreDict = {keywords[i]: scores[i] for i in range(len(keywords))}
-    showWordCloudFromScoresDict(wordScoreDict, max_words)
+    showWordCloudFromScoresDict(wordScoreDict, max_words, filepath=filepath)
