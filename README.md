@@ -68,3 +68,7 @@ Choose a cluster representator and show wordclouds for the biggest topics
 Show frequency of topics over times (dynamic topic modeling), or trends:
 
     tt.showTopicTrends()
+
+Show topics in which "car" appears in the top 75 words in their cluster representation:
+
+    tt.searchForWordInTopics("car", topNWords=75)
